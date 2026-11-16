@@ -5,15 +5,15 @@ mermaid.initialize({
     securityLevel: 'loose',
     themeVariables: {
         fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontSize: '15px',
-        primaryColor: '#eef2ff',
-        primaryBorderColor: '#6366f1',
-        primaryTextColor: '#1e293b',
+        fontSize: '14px',
+        primaryColor: '#f1f5f9',
+        primaryBorderColor: '#475569',
+        primaryTextColor: '#111827',
         secondaryColor: '#f8fafc',
-        secondaryBorderColor: '#94a3b8',
-        secondaryTextColor: '#334155',
+        secondaryBorderColor: '#64748b',
+        secondaryTextColor: '#1e293b',
         tertiaryColor: '#f1f5f9',
-        lineColor: '#475569',
+        lineColor: '#334155',
         edgeLabelBackground: '#ffffff',
         clusterBkg: '#f8fafc',
         clusterBorder: '#cbd5e1'
@@ -21,10 +21,10 @@ mermaid.initialize({
     flowchart: {
         useMaxWidth: true,
         htmlLabels: false,
-        nodeSpacing: 45,
-        rankSpacing: 55,
-        padding: 20,
-        curve: 'basis'
+        nodeSpacing: 34,
+        rankSpacing: 38,
+        padding: 14,
+        curve: 'stepAfter'
     }
 });
 
@@ -380,6 +380,150 @@ const inlineMathExtension = {
     }
 };
 
+/**
+ * Convert Mermaid flowchart/graph or sequenceDiagram into PlantUML (@startuml ... @enduml).
+ * Returns null if the diagram type is not supported.
+ */
+function convertMermaidToPlantUml(code) {
+    const lines = code.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return null;
+
+    const header = lines[0];
+    if (/^sequenceDiagram\b/i.test(header)) {
+        const out = [
+            '@startuml',
+            'skinparam backgroundColor #ffffff',
+            'skinparam shadowing false',
+            'skinparam roundCorner 10',
+            'skinparam defaultFontName "Segoe UI", Arial, sans-serif',
+            'skinparam sequence {',
+            '  ParticipantBackgroundColor #f1f5f9',
+            '  ParticipantBorderColor #475569',
+            '  ArrowColor #334155',
+            '  LifeLineBorderColor #94a3b8',
+            '}'
+        ];
+        for (let i = 1; i < lines.length; i++) {
+            const l = lines[i];
+            if (/^%%/.test(l)) continue;
+            const msgMatch = l.match(/^([^\s-]+?)\s*(->>|-->>|->|-->)\s*([^\s:]+)\s*:\s*(.*)$/);
+            if (msgMatch) {
+                const arrow = msgMatch[2].startsWith('--') ? '-->' : '->';
+                out.push(`${msgMatch[1]} ${arrow} ${msgMatch[3]} : ${msgMatch[4]}`);
+            } else {
+                out.push(l.replace(/\bparticipant\s+(\S+)\s+as\s+(.+)/i, 'participant "$2" as $1'));
+            }
+        }
+        out.push('@enduml');
+        return out.join('\n');
+    }
+
+    const dirMatch = header.match(/^(?:graph|flowchart)\s+(TD|TB|LR|RL|BT)\b/i);
+    if (!dirMatch) return null;
+
+    const dir = dirMatch[1].toUpperCase();
+    const out = [
+        '@startuml',
+        dir === 'LR' || dir === 'RL' ? 'left to right direction' : 'top to bottom direction',
+        'skinparam backgroundColor #ffffff',
+        'skinparam shadowing false',
+        'skinparam roundCorner 12',
+        'skinparam linetype ortho',
+        'skinparam defaultFontName "Segoe UI", Arial, sans-serif',
+        'skinparam ArrowColor #334155',
+        'skinparam rectangle {',
+        '  BackgroundColor #f1f5f9',
+        '  BorderColor #475569',
+        '  FontColor #111827',
+        '}',
+        'skinparam hexagon {',
+        '  BackgroundColor #f8fafc',
+        '  BorderColor #475569',
+        '  FontColor #111827',
+        '}',
+        'skinparam usecase {',
+        '  BackgroundColor #f1f5f9',
+        '  BorderColor #475569',
+        '  FontColor #111827',
+        '}',
+        'skinparam package {',
+        '  BackgroundColor #f8fafc',
+        '  BorderColor #cbd5e1',
+        '  FontColor #334155',
+        '}'
+    ];
+
+    const declaredNodes = new Set();
+    const parseNodeToken = (token) => {
+        const clean = token.trim();
+        // Match id([label]), id((label)), id{label}, id[label], or bare id
+        let m = clean.match(/^([A-Za-z0-9_]+)\s*\(\[(.*?)\]\)$/);
+        if (m) return { id: m[1], label: m[2].replace(/^["']|["']$/g, '').replace(/<br\s*\/?>/gi, '\\n'), shape: 'usecase' };
+        m = clean.match(/^([A-Za-z0-9_]+)\s*\(\((.*?)\)\)$/);
+        if (m) return { id: m[1], label: m[2].replace(/^["']|["']$/g, '').replace(/<br\s*\/?>/gi, '\\n'), shape: 'usecase' };
+        m = clean.match(/^([A-Za-z0-9_]+)\s*\((.*?)\)$/);
+        if (m) return { id: m[1], label: m[2].replace(/^["']|["']$/g, '').replace(/<br\s*\/?>/gi, '\\n'), shape: 'rectangle' };
+        m = clean.match(/^([A-Za-z0-9_]+)\s*\{(.*?)\}$/);
+        if (m) return { id: m[1], label: m[2].replace(/^["']|["']$/g, '').replace(/<br\s*\/?>/gi, '\\n'), shape: 'hexagon' };
+        m = clean.match(/^([A-Za-z0-9_]+)\s*\[(.*?)\]$/);
+        if (m) return { id: m[1], label: m[2].replace(/^["']|["']$/g, '').replace(/<br\s*\/?>/gi, '\\n'), shape: 'rectangle' };
+        const idOnly = clean.match(/^([A-Za-z0-9_]+)$/);
+        if (idOnly) return { id: idOnly[1], label: null, shape: 'rectangle' };
+        return null;
+    };
+
+    const emitNodeIfNeeded = (node, indent) => {
+        if (!node || declaredNodes.has(node.id)) return;
+        declaredNodes.add(node.id);
+        const label = (node.label || node.id).replace(/"/g, '\\"');
+        out.push(`${indent}${node.shape} "${label}" as ${node.id}`);
+    };
+
+    let indent = '';
+    for (let i = 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (/^(%%|style\s|classDef\s|class\s|linkStyle\s)/i.test(l)) continue;
+
+        const subMatch = l.match(/^subgraph\s+(.+)$/i);
+        if (subMatch) {
+            const title = subMatch[1].replace(/^["']|["']$/g, '').replace(/^[A-Za-z0-9_]+\s*\[(.*)\]$/, '$1');
+            out.push(`${indent}package "${title}" {`);
+            indent += '  ';
+            continue;
+        }
+        if (/^end$/i.test(l)) {
+            indent = indent.slice(2);
+            out.push(`${indent}}`);
+            continue;
+        }
+
+        // Edge patterns: A -->|label| B, A -- label --> B, A -.-> B, A ==> B, A --> B
+        const edgeMatch = l.match(/^(.+?)\s*(-->\|([^|]+)\||-\.->\|([^|]+)\||==>\|([^|]+)\||--\s+([^->]+?)\s+-->|-->|-\.->|==>|---)\s*(.+)$/);
+        if (edgeMatch) {
+            const left = parseNodeToken(edgeMatch[1]);
+            const right = parseNodeToken(edgeMatch[7]);
+            const label = (edgeMatch[3] || edgeMatch[4] || edgeMatch[5] || edgeMatch[6] || '').trim().replace(/<br\s*\/?>/gi, '\\n');
+            const isDotted = edgeMatch[2].includes('.');
+            if (left && right) {
+                emitNodeIfNeeded(left, indent);
+                emitNodeIfNeeded(right, indent);
+                const arrow = isDotted ? '..>' : '-->';
+                out.push(label ? `${indent}${left.id} ${arrow} ${right.id} : ${label}` : `${indent}${left.id} ${arrow} ${right.id}`);
+                continue;
+            }
+        }
+
+        // Standalone node declaration
+        const standalone = parseNodeToken(l);
+        if (standalone && standalone.label) {
+            emitNodeIfNeeded(standalone, indent);
+        }
+    }
+
+    out.push('@enduml');
+    return out.join('\n');
+}
+
 // Custom Renderer overrides to isolate and tag Mermaid Code Blocks, Math Blocks, and GitHub Alert Blocks
 marked.use({
     extensions: [blockMathExtension, inlineMathExtension],
@@ -408,6 +552,9 @@ marked.use({
                             </button>
                             <button type="button" class="diagram-action-btn download-diagram-btn" data-target-id="${id}" data-diagram-index="${diagIndex}" title="Download this diagram as a 3x high-res PNG">
                                 <i class="fa-solid fa-download"></i> PNG
+                            </button>
+                            <button type="button" class="diagram-action-btn convert-uml-btn" data-target-id="${id}" title="Convert this Mermaid diagram to PlantUML">
+                                <i class="fa-solid fa-diagram-project"></i> Convert to UML
                             </button>
                         </div>
                         <pre class="mermaid-code-raw" style="display:none;">${text}</pre>
@@ -566,6 +713,43 @@ function bindDiagramToolbarEvents() {
             } catch (err) {
                 console.error('Failed to download diagram PNG:', err);
                 showToast('Download Failed', 'Could not export diagram PNG.', false);
+            }
+        });
+    });
+
+    previewContent.querySelectorAll('.convert-uml-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetId = btn.getAttribute('data-target-id');
+            const targetEl = previewContent.querySelector(`#${targetId}`);
+            const rawCodeEl = targetEl ? targetEl.previousElementSibling : null;
+            if (!rawCodeEl) return;
+
+            const mermaidCode = rawCodeEl.textContent;
+            const pumlCode = convertMermaidToPlantUml(mermaidCode);
+            if (!pumlCode) {
+                showToast('Conversion Unsupported', 'Only flowchart/graph and sequenceDiagram blocks can be converted to PlantUML automatically.', false);
+                return;
+            }
+
+            // Replace matching ```mermaid block in markdownInput
+            const md = markdownInput.value;
+            const blockRegex = /```mermaid\s*\r?\n([\s\S]*?)```/gi;
+            let replaced = false;
+            const updatedMd = md.replace(blockRegex, (full, inner) => {
+                if (!replaced && inner.trim() === mermaidCode.trim()) {
+                    replaced = true;
+                    return '```plantuml\n' + pumlCode + '\n```';
+                }
+                return full;
+            });
+
+            if (replaced) {
+                markdownInput.value = updatedMd;
+                renderMarkdown();
+                showToast('Converted to PlantUML', 'Replaced Mermaid block with PlantUML. Use Ctrl+Z in editor to undo.');
+            } else {
+                showToast('Block Not Found', 'Could not match the Mermaid block in the editor.', false);
             }
         });
     });
