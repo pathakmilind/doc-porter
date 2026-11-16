@@ -1,9 +1,31 @@
 // Initialize Mermaid (Always crisp light theme for Google Docs / PDF compatibility)
 mermaid.initialize({
     startOnLoad: false,
-    theme: 'default',
+    theme: 'base',
     securityLevel: 'loose',
-    flowchart: { useMaxWidth: true, htmlLabels: true }
+    themeVariables: {
+        fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '15px',
+        primaryColor: '#eef2ff',
+        primaryBorderColor: '#6366f1',
+        primaryTextColor: '#1e293b',
+        secondaryColor: '#f8fafc',
+        secondaryBorderColor: '#94a3b8',
+        secondaryTextColor: '#334155',
+        tertiaryColor: '#f1f5f9',
+        lineColor: '#475569',
+        edgeLabelBackground: '#ffffff',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1'
+    },
+    flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        nodeSpacing: 45,
+        rankSpacing: 55,
+        padding: 16,
+        curve: 'basis'
+    }
 });
 
 // Cache DOM Elements
@@ -267,7 +289,7 @@ function updateDocumentStats(rawMarkdown) {
         .replace(/[#>*_`~\-\[\]()!|]/g, ' ')
         .trim();
     const words = cleanText ? cleanText.split(/\s+/).length : 0;
-    const mermaidCount = (rawMarkdown.match(/```mermaid\b/gi) || []).length;
+    const mermaidCount = (rawMarkdown.match(/```(mermaid|plantuml|puml|uml)\b/gi) || []).length;
     const mathCount = (rawMarkdown.match(/\$\$[\s\S]*?\$\$/g) || []).length + (rawMarkdown.match(/```(math|latex|tex)\b/gi) || []).length;
 
     const parts = [`${words} words`];
@@ -379,7 +401,7 @@ marked.use({
                 const id = `mermaid-raw-${diagramCounter}`;
                 const diagIndex = diagramCounter;
                 return `
-                    <div class="mermaid-diagram-container" data-id="${id}" data-diagram-index="${diagIndex}">
+                    <div class="diagram-container mermaid-diagram-container" data-id="${id}" data-diagram-index="${diagIndex}">
                         <div class="diagram-toolbar" contenteditable="false">
                             <button type="button" class="diagram-action-btn copy-diagram-btn" data-target-id="${id}" title="Copy just this diagram as a 3x PNG for Google Docs/Slides">
                                 <i class="fa-solid fa-copy"></i> Copy PNG
@@ -390,6 +412,26 @@ marked.use({
                         </div>
                         <pre class="mermaid-code-raw" style="display:none;">${text}</pre>
                         <div class="mermaid-render-target" id="${id}">Rendering diagram...</div>
+                    </div>
+                `;
+            }
+
+            if (['plantuml', 'puml', 'uml'].includes(language.toLowerCase())) {
+                diagramCounter++;
+                const id = `plantuml-raw-${diagramCounter}`;
+                const diagIndex = diagramCounter;
+                return `
+                    <div class="diagram-container plantuml-diagram-container" data-id="${id}" data-diagram-index="${diagIndex}">
+                        <div class="diagram-toolbar" contenteditable="false">
+                            <button type="button" class="diagram-action-btn copy-diagram-btn" data-target-id="${id}" title="Copy just this diagram as a 3x PNG for Google Docs/Slides">
+                                <i class="fa-solid fa-copy"></i> Copy PNG
+                            </button>
+                            <button type="button" class="diagram-action-btn download-diagram-btn" data-target-id="${id}" data-diagram-index="${diagIndex}" title="Download this diagram as a 3x high-res PNG">
+                                <i class="fa-solid fa-download"></i> PNG
+                            </button>
+                        </div>
+                        <pre class="plantuml-code-raw" style="display:none;">${text}</pre>
+                        <div class="plantuml-render-target" id="${id}">Rendering UML diagram...</div>
                     </div>
                 `;
             }
@@ -634,6 +676,16 @@ async function renderDocument() {
         try {
             const { svg } = await mermaid.render(`mermaid-rendered-${id}-${Date.now()}`, code);
             target.innerHTML = svg;
+            const svgEl = target.querySelector('svg');
+            if (svgEl) {
+                const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+                if (vb && vb.width > 900) {
+                    const hint = document.createElement('div');
+                    hint.style.cssText = 'margin-top: 6px; font-size: 0.78rem; color: #64748b; font-family: sans-serif;';
+                    hint.textContent = `Tip: Wide diagram (${Math.round(vb.width)}px). Consider TD (top-down) orientation for better readability at Google Docs 6.5in page width.`;
+                    target.appendChild(hint);
+                }
+            }
         } catch (error) {
             console.error('Mermaid render error:', error);
             target.innerHTML = `
@@ -644,6 +696,41 @@ async function renderDocument() {
             `;
             try { mermaid.parseError(); } catch(e) {}
         }
+    }
+
+    // Render PlantUML / PlantText diagrams (debounced + cached + inline SVG for CORS-safe PNG export)
+    const plantumlTargets = previewContent.querySelectorAll('.plantuml-render-target');
+    if (plantumlTargets.length > 0 && window.plantumlEncoder) {
+        if (!window._plantumlSvgCache) window._plantumlSvgCache = new Map();
+        const serverBase = (localStorage.getItem('plantumlServerUrl') || 'https://www.plantuml.com/plantuml/svg/').replace(/\/?$/, '/');
+        clearTimeout(window._plantumlDebounceTimer);
+        window._plantumlDebounceTimer = setTimeout(async () => {
+            for (const target of plantumlTargets) {
+                const code = target.previousElementSibling.textContent;
+                try {
+                    const encoded = window.plantumlEncoder.encode(code);
+                    if (window._plantumlSvgCache.has(encoded)) {
+                        target.innerHTML = window._plantumlSvgCache.get(encoded);
+                        continue;
+                    }
+                    const resp = await fetch(`${serverBase}${encoded}`);
+                    if (!resp.ok) {
+                        throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+                    }
+                    const svgText = await resp.text();
+                    window._plantumlSvgCache.set(encoded, svgText);
+                    target.innerHTML = svgText;
+                } catch (error) {
+                    console.error('PlantUML render error:', error);
+                    target.innerHTML = `
+                        <div style="color: var(--danger); padding: 12px; font-family: sans-serif; font-size: 0.9rem; text-align: left; background: rgba(239, 68, 68, 0.05); border: 1px dashed var(--danger); border-radius: 6px;">
+                            <strong>⚠️ PlantUML Render Error:</strong>
+                            <pre style="margin-top: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.8rem; overflow: auto; background: transparent; padding: 0;">${error.message || error}</pre>
+                        </div>
+                    `;
+                }
+            }
+        }, 500);
     }
 
     // Render MathJax LaTeX equations
@@ -1161,7 +1248,12 @@ copyBtn.addEventListener('click', async () => {
         inlineStyles('blockquote', 'border-left: 3pt solid #cbd5e1; background-color: #f8fafc; padding: 8pt 12pt; margin: 8pt 0; color: #475569; font-style: italic;');
 
         // Search for all rendered SVG diagrams and rasterize them to 3x PNG images
-        const wrappers = offlineRoot.querySelectorAll('.mermaid-diagram-container');
+        // gdocs typography: keep <th> bold, explicitly unbold <td> data cells
+        offlineRoot.querySelectorAll('td').forEach(td => {
+            td.style.fontWeight = 'normal';
+        });
+
+        const wrappers = offlineRoot.querySelectorAll('.diagram-container');
         
         for (const wrapper of wrappers) {
             const svgElement = wrapper.querySelector('svg');
@@ -1837,7 +1929,7 @@ if (docxBtn) {
             // 1. Pre-rasterize all Mermaid diagrams and MathJax formulas to 3x PNG byte arrays
             const imageMap = new Map();
 
-            const mermaidContainers = previewContent.querySelectorAll('.mermaid-diagram-container');
+            const mermaidContainers = previewContent.querySelectorAll('.diagram-container');
             for (const container of mermaidContainers) {
                 const id = container.getAttribute('data-id');
                 const svgEl = container.querySelector('svg');
