@@ -20,10 +20,10 @@ mermaid.initialize({
     },
     flowchart: {
         useMaxWidth: true,
-        htmlLabels: true,
+        htmlLabels: false,
         nodeSpacing: 45,
         rankSpacing: 55,
-        padding: 16,
+        padding: 20,
         curve: 'basis'
     }
 });
@@ -676,16 +676,6 @@ async function renderDocument() {
         try {
             const { svg } = await mermaid.render(`mermaid-rendered-${id}-${Date.now()}`, code);
             target.innerHTML = svg;
-            const svgEl = target.querySelector('svg');
-            if (svgEl) {
-                const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
-                if (vb && vb.width > 900) {
-                    const hint = document.createElement('div');
-                    hint.style.cssText = 'margin-top: 6px; font-size: 0.78rem; color: #64748b; font-family: sans-serif;';
-                    hint.textContent = `Tip: Wide diagram (${Math.round(vb.width)}px). Consider TD (top-down) orientation for better readability at Google Docs 6.5in page width.`;
-                    target.appendChild(hint);
-                }
-            }
         } catch (error) {
             console.error('Mermaid render error:', error);
             target.innerHTML = `
