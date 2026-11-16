@@ -732,15 +732,21 @@ function bindDiagramToolbarEvents() {
                 return;
             }
 
-            // Replace matching ```mermaid block in markdownInput
+            const container = btn.closest('.mermaid-diagram-container');
+            const allMermaidContainers = Array.from(previewContent.querySelectorAll('.mermaid-diagram-container'));
+            const mermaidIdx = allMermaidContainers.indexOf(container);
+
+            // Replace matching ```mermaid block in markdownInput by index
             const md = markdownInput.value;
-            const blockRegex = /```mermaid\s*\r?\n([\s\S]*?)```/gi;
+            const blockRegex = /```mermaid\b[^\r\n]*\r?\n([\s\S]*?)```/gi;
+            let currentIdx = 0;
             let replaced = false;
-            const updatedMd = md.replace(blockRegex, (full, inner) => {
-                if (!replaced && inner.trim() === mermaidCode.trim()) {
+            const updatedMd = md.replace(blockRegex, (full) => {
+                if (!replaced && currentIdx === mermaidIdx) {
                     replaced = true;
                     return '```plantuml\n' + pumlCode + '\n```';
                 }
+                currentIdx++;
                 return full;
             });
 
