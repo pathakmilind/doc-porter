@@ -1,19 +1,19 @@
-// Initialize Mermaid (Always crisp light theme for Google Docs / PDF compatibility)
+// Initialize Mermaid (Modern crisp light theme for Google Docs / PDF compatibility)
 mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
     securityLevel: 'loose',
     themeVariables: {
         fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontSize: '14px',
-        primaryColor: '#f1f5f9',
-        primaryBorderColor: '#475569',
-        primaryTextColor: '#111827',
-        secondaryColor: '#f8fafc',
-        secondaryBorderColor: '#64748b',
-        secondaryTextColor: '#1e293b',
-        tertiaryColor: '#f1f5f9',
-        lineColor: '#334155',
+        fontSize: '15px',
+        primaryColor: '#eff6ff',
+        primaryBorderColor: '#3b82f6',
+        primaryTextColor: '#0f172a',
+        secondaryColor: '#f0fdf4',
+        secondaryBorderColor: '#22c55e',
+        secondaryTextColor: '#0f172a',
+        tertiaryColor: '#faf5ff',
+        lineColor: '#64748b',
         edgeLabelBackground: '#ffffff',
         clusterBkg: '#f8fafc',
         clusterBorder: '#cbd5e1'
@@ -21,10 +21,10 @@ mermaid.initialize({
     flowchart: {
         useMaxWidth: true,
         htmlLabels: false,
-        nodeSpacing: 34,
-        rankSpacing: 38,
-        padding: 14,
-        curve: 'stepAfter'
+        nodeSpacing: 42,
+        rankSpacing: 50,
+        padding: 18,
+        curve: 'basis'
     }
 });
 
@@ -427,28 +427,35 @@ function convertMermaidToPlantUml(code) {
         dir === 'LR' || dir === 'RL' ? 'left to right direction' : 'top to bottom direction',
         'skinparam backgroundColor #ffffff',
         'skinparam shadowing false',
-        'skinparam roundCorner 12',
-        'skinparam linetype ortho',
+        'skinparam roundCorner 14',
+        'skinparam padding 8',
+        'skinparam nodesep 35',
+        'skinparam ranksep 45',
         'skinparam defaultFontName "Segoe UI", Arial, sans-serif',
-        'skinparam ArrowColor #334155',
+        'skinparam defaultFontSize 13',
+        'skinparam ArrowColor #475569',
+        'skinparam ArrowThickness 1.4',
         'skinparam rectangle {',
-        '  BackgroundColor #f1f5f9',
-        '  BorderColor #475569',
-        '  FontColor #111827',
+        '  BackgroundColor #eff6ff',
+        '  BorderColor #3b82f6',
+        '  BorderThickness 1.5',
+        '  FontColor #0f172a',
         '}',
         'skinparam hexagon {',
-        '  BackgroundColor #f8fafc',
-        '  BorderColor #475569',
-        '  FontColor #111827',
+        '  BackgroundColor #fefce8',
+        '  BorderColor #eab308',
+        '  BorderThickness 1.5',
+        '  FontColor #0f172a',
         '}',
         'skinparam usecase {',
-        '  BackgroundColor #f1f5f9',
-        '  BorderColor #475569',
-        '  FontColor #111827',
+        '  BackgroundColor #f0fdf4',
+        '  BorderColor #22c55e',
+        '  BorderThickness 1.5',
+        '  FontColor #0f172a',
         '}',
         'skinparam package {',
         '  BackgroundColor #f8fafc',
-        '  BorderColor #cbd5e1',
+        '  BorderColor #94a3b8',
         '  FontColor #334155',
         '}'
     ];
@@ -1156,7 +1163,7 @@ copyBtn.addEventListener('click', async () => {
         // BUG #1 FIX (Part A): Only trim leading whitespace on the VERY FIRST child node
         // and trailing whitespace on the VERY LAST child node of block elements.
         // Never trim intermediate text nodes, which previously stripped spaces around inline `code` tags!
-        offlineRoot.querySelectorAll('h1, h2, h3, h4, td, th, p, li').forEach(el => {
+        offlineRoot.querySelectorAll('h1, h2, h3, h4, h5, h6, td, th, p, li').forEach(el => {
             const nodes = Array.from(el.childNodes);
             if (nodes.length > 0 && nodes[0].nodeType === Node.TEXT_NODE) {
                 nodes[0].nodeValue = nodes[0].nodeValue.replace(/^[\s\t\n]+/, '');
@@ -1164,6 +1171,22 @@ copyBtn.addEventListener('click', async () => {
             const lastIdx = nodes.length - 1;
             if (lastIdx >= 0 && nodes[lastIdx].nodeType === Node.TEXT_NODE) {
                 nodes[lastIdx].nodeValue = nodes[lastIdx].nodeValue.replace(/[\s\t\n]+$/, '');
+            }
+        });
+
+        // Normalize skipped heading levels (e.g., h1 -> h3 becomes h1 -> h2)
+        const gdocHeadingStack = [{ raw: 0, norm: 0 }];
+        offlineRoot.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+            const rawLevel = parseInt(h.tagName.slice(1), 10);
+            while (gdocHeadingStack.length > 1 && gdocHeadingStack[gdocHeadingStack.length - 1].raw >= rawLevel) {
+                gdocHeadingStack.pop();
+            }
+            const normLevel = Math.min(6, gdocHeadingStack[gdocHeadingStack.length - 1].norm + 1);
+            gdocHeadingStack.push({ raw: rawLevel, norm: normLevel });
+            if (normLevel !== rawLevel) {
+                const newH = document.createElement(`h${normLevel}`);
+                while (h.firstChild) newH.appendChild(h.firstChild);
+                h.parentNode.replaceChild(newH, h);
             }
         });
 
@@ -1175,13 +1198,15 @@ copyBtn.addEventListener('click', async () => {
             });
         };
 
-        // Apply high-fidelity, cross-platform inline styles
-        inlineStyles('h1', 'font-family: Arial, sans-serif; font-size: 22pt; font-weight: bold; color: #0f172a; margin-top: 16pt; margin-bottom: 6pt; border-bottom: 1.5pt solid #e2e8f0; padding-bottom: 4pt;');
-        inlineStyles('h2', 'font-family: Arial, sans-serif; font-size: 16pt; font-weight: bold; color: #0f172a; margin-top: 14pt; margin-bottom: 5pt; border-bottom: 1pt solid #e2e8f0; padding-bottom: 3pt;');
-        inlineStyles('h3', 'font-family: Arial, sans-serif; font-size: 13pt; font-weight: bold; color: #1e293b; margin-top: 12pt; margin-bottom: 4pt;');
-        inlineStyles('h4', 'font-family: Arial, sans-serif; font-size: 11.5pt; font-weight: bold; color: #1e293b; margin-top: 10pt; margin-bottom: 3pt;');
-        inlineStyles('p', 'font-family: Arial, sans-serif; font-size: 10.5pt; font-weight: normal; line-height: 1.45; color: #334155; margin-top: 0pt; margin-bottom: 8pt;');
-        inlineStyles('li', 'font-family: Arial, sans-serif; font-size: 10.5pt; font-weight: normal; line-height: 1.45; color: #334155; margin-top: 0pt; margin-bottom: 3pt;');
+        // Apply high-fidelity, cross-platform inline styles (matching Word / .docx defaults)
+        inlineStyles('h1', 'font-family: Calibri, sans-serif; font-size: 16pt; font-weight: bold; color: #3597c8; margin-top: 16pt; margin-bottom: 8pt;');
+        inlineStyles('h2', 'font-family: Calibri, sans-serif; font-size: 13pt; font-weight: bold; color: #3597c8; margin-top: 11pt; margin-bottom: 5pt;');
+        inlineStyles('h3', 'font-family: Calibri, sans-serif; font-size: 12pt; font-weight: bold; color: #1f4d78; margin-top: 9pt; margin-bottom: 4pt;');
+        inlineStyles('h4', 'font-family: Calibri, sans-serif; font-size: 11pt; font-weight: bold; color: #2e74b5; margin-top: 8pt; margin-bottom: 3pt;');
+        inlineStyles('h5', 'font-family: Calibri, sans-serif; font-size: 11pt; font-weight: normal; color: #2e74b5; margin-top: 7pt; margin-bottom: 3pt;');
+        inlineStyles('h6', 'font-family: Calibri, sans-serif; font-size: 11pt; font-weight: normal; color: #1f4d78; margin-top: 6pt; margin-bottom: 3pt;');
+        inlineStyles('p', 'font-family: Calibri, sans-serif; font-size: 11pt; font-weight: normal; line-height: 1.45; color: #000000; margin-top: 0pt; margin-bottom: 8pt;');
+        inlineStyles('li', 'font-family: Calibri, sans-serif; font-size: 11pt; font-weight: normal; line-height: 1.45; color: #000000; margin-top: 0pt; margin-bottom: 3pt;');
         inlineStyles('ul', 'margin-top: 2pt; margin-bottom: 8pt; padding-left: 20pt; list-style-type: disc;');
         inlineStyles('ol', 'margin-top: 2pt; margin-bottom: 8pt; padding-left: 20pt; list-style-type: decimal;');
         
@@ -1200,7 +1225,7 @@ copyBtn.addEventListener('click', async () => {
         inlineStyles('.hljs-attr', 'color: #116329;');
         inlineStyles('.hljs-title', 'color: #8250df; font-weight: bold;');
 
-        // Keep inline `code` elements in Arial for Google Docs while preserving boundary spaces cleanly
+        // Keep inline `code` inheriting surrounding font, size, and color while preserving #f1f5f9 highlight
         offlineRoot.querySelectorAll('code:not(pre code)').forEach(codeEl => {
             const prev = codeEl.previousSibling;
             if (prev && prev.nodeType === Node.TEXT_NODE && /[ \t\r\n]+$/.test(prev.nodeValue)) {
@@ -1214,7 +1239,7 @@ copyBtn.addEventListener('click', async () => {
             const span = document.createElement('span');
             span.setAttribute(
                 'style',
-                'background-color: #f1f5f9; color: #cf222e; font-family: Arial, sans-serif; padding: 1pt 3pt; border-radius: 3pt;'
+                'background-color: #f1f5f9; padding: 1pt 3pt; border-radius: 3pt;'
             );
             // Keep internal spaces breakable so long inline code spans wrap naturally inside table cells and lists
             span.textContent = codeEl.textContent || '';
@@ -1300,16 +1325,16 @@ copyBtn.addEventListener('click', async () => {
             }
             const rawAlign = (cell.getAttribute('align') || (cell.style && cell.style.textAlign) || 'left').toLowerCase().trim();
             const cellAlign = ['left', 'center', 'right', 'justify'].includes(rawAlign) ? rawAlign : 'left';
-            const txtColor = (isHeader || isFmKey) ? '#0f172a' : '#334155';
-            const fontSize = isHeader ? '9.5pt' : '9.5pt';
+            const txtColor = '#000000';
+            const fontSize = '11pt';
 
             cell.setAttribute(
                 'style',
-                `${bg} ${widthRule} border: 1pt solid #cbd5e1; padding: 3pt 6pt; text-align: ${cellAlign}; vertical-align: middle; line-height: 1.15; font-family: Arial, sans-serif; font-size: ${fontSize}; color: ${txtColor}; ${fw}`
+                `${bg} ${widthRule} border: 1pt solid #cbd5e1; padding: 3pt 6pt; text-align: ${cellAlign}; vertical-align: middle; line-height: 1.15; font-family: Calibri, sans-serif; font-size: ${fontSize}; color: ${txtColor}; ${fw}`
             );
 
             // Wrap cell contents in an explicit zero-margin <p> so Google Docs sets Before: 0pt, After: 0pt, Line-spacing: 1.15
-            const pStyle = `margin: 0pt; margin-top: 0pt; margin-bottom: 0pt; padding: 0pt; text-align: ${cellAlign}; line-height: 1.15; font-family: Arial, sans-serif; font-size: ${fontSize}; color: ${txtColor}; ${fw}`;
+            const pStyle = `margin: 0pt; margin-top: 0pt; margin-bottom: 0pt; padding: 0pt; text-align: ${cellAlign}; line-height: 1.15; font-family: Calibri, sans-serif; font-size: ${fontSize}; color: ${txtColor}; ${fw}`;
             const existingPs = cell.querySelectorAll('p');
             if (existingPs.length > 0) {
                 existingPs.forEach(p => p.setAttribute('style', pStyle));
@@ -1599,16 +1624,16 @@ function buildDocxInlineRuns(containerNode, ctx, imageMap) {
             text = text.replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ');
             if (!text) return;
 
-            runs.push(new TextRun({
-                text,
-                font: ctx.font || 'Arial',
-                size: ctx.size || 21,
-                color: ctx.color || '334155',
-                bold: Boolean(ctx.bold),
-                italics: Boolean(ctx.italics),
-                strike: Boolean(ctx.strike),
-                underline: ctx.underline ? { type: UnderlineType.SINGLE, color: ctx.color || '2563EB' } : undefined
-            }));
+            const runOpts = { text };
+            if (ctx.font) runOpts.font = ctx.font;
+            if (ctx.size) runOpts.size = ctx.size;
+            if (ctx.color) runOpts.color = ctx.color;
+            if (ctx.bold !== undefined) runOpts.bold = Boolean(ctx.bold);
+            if (ctx.italics) runOpts.italics = true;
+            if (ctx.strike) runOpts.strike = true;
+            if (ctx.underline) runOpts.underline = { type: UnderlineType.SINGLE, color: ctx.color || '2563EB' };
+
+            runs.push(new TextRun(runOpts));
             return;
         }
 
@@ -1657,20 +1682,20 @@ function buildDocxInlineRuns(containerNode, ctx, imageMap) {
 
         if (tag === 'code') {
             const codeText = node.textContent || '';
-            // Inline code inherits parent ctx.size (e.g., 44 in H1 = 22pt, 19 in table = 9.5pt, 21 in body = 10.5pt)
-            runs.push(new TextRun({
+            const codeOpts = {
                 text: codeText,
-                font: 'Arial',
-                size: ctx.size || 21,
-                color: 'CF222E',
-                bold: Boolean(ctx.bold),
-                italics: Boolean(ctx.italics),
                 shading: {
                     type: ShadingType.CLEAR,
                     color: 'auto',
                     fill: 'F1F5F9'
                 }
-            }));
+            };
+            if (ctx.font) codeOpts.font = ctx.font;
+            if (ctx.size) codeOpts.size = ctx.size;
+            if (ctx.color) codeOpts.color = ctx.color;
+            if (ctx.bold !== undefined) codeOpts.bold = Boolean(ctx.bold);
+            if (ctx.italics) codeOpts.italics = true;
+            runs.push(new TextRun(codeOpts));
             return;
         }
 
@@ -1876,9 +1901,6 @@ function buildDocxDataTable(tableNode, liveTable, imageMap) {
 
             // Explicit bold isolation: normal td cells have bold: false; only <th>, .fm-key, or nested <strong> are bold
             const cellRuns = buildDocxInlineRuns(clonedCell, {
-                font: 'Arial',
-                size: 19, // 9.5pt
-                color: (isHeader || isFmKey) ? '0F172A' : '334155',
                 bold: Boolean(isHeader || isFmKey),
                 italics: false
             }, imageMap);
@@ -1958,8 +1980,6 @@ function buildDocxAlertTable(alertEl, imageMap) {
         pEls.forEach((p, idx) => {
             const isLast = idx === pEls.length - 1;
             const runs = buildDocxInlineRuns(p, {
-                font: 'Arial',
-                size: 20, // 10pt
                 color: textHex,
                 bold: false
             }, imageMap);
@@ -1970,8 +1990,6 @@ function buildDocxAlertTable(alertEl, imageMap) {
         });
     } else {
         const runs = buildDocxInlineRuns(bodyEl, {
-            font: 'Arial',
-            size: 20,
             color: textHex,
             bold: false
         }, imageMap);
@@ -2046,15 +2064,12 @@ function buildDocxListBlocks(listNode, level, imageMap) {
             }
 
             const itemRuns = buildDocxInlineRuns(pendingInlineContainer, {
-                font: 'Arial',
-                size: 21, // 10.5pt
-                color: '334155',
                 bold: false
             }, imageMap);
 
             if (itemRuns.length > 0) {
                 const prefixRun = !hasEmittedFirstParagraph
-                    ? [new TextRun({ text: prefixText, font: 'Arial', size: 21, color: '334155', bold: isOrdered })]
+                    ? [new TextRun({ text: prefixText, bold: isOrdered })]
                     : [];
                 blocks.push(new Paragraph({
                     indent: !hasEmittedFirstParagraph
@@ -2169,6 +2184,15 @@ if (docxBtn) {
 
             // 2. Walk top-level children of previewContent and build OpenXML AST
             const docChildren = [];
+            const headingStack = [{ raw: 0, norm: 0 }];
+            const normalizeHeadingLevel = (rawLevel) => {
+                while (headingStack.length > 1 && headingStack[headingStack.length - 1].raw >= rawLevel) {
+                    headingStack.pop();
+                }
+                const norm = Math.min(6, headingStack[headingStack.length - 1].norm + 1);
+                headingStack.push({ raw: rawLevel, norm });
+                return norm;
+            };
             const liveTables = Array.from(previewContent.querySelectorAll('table'));
             let tableCursor = 0;
 
@@ -2191,14 +2215,17 @@ if (docxBtn) {
                     continue;
                 }
 
-                // Headings H1 - H4
-                if (['h1', 'h2', 'h3', 'h4'].includes(tag)) {
-                    const sizeMap = { h1: 44, h2: 32, h3: 26, h4: 23 }; // 22pt, 16pt, 13pt, 11.5pt
+                // Headings H1 - H6 (with skipped-level normalization, inheriting styles.xml)
+                if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+                    const rawLevel = parseInt(tag.slice(1), 10);
+                    const normLevel = normalizeHeadingLevel(rawLevel);
                     const headingMap = {
-                        h1: HeadingLevel.HEADING_1,
-                        h2: HeadingLevel.HEADING_2,
-                        h3: HeadingLevel.HEADING_3,
-                        h4: HeadingLevel.HEADING_4
+                        1: HeadingLevel.HEADING_1,
+                        2: HeadingLevel.HEADING_2,
+                        3: HeadingLevel.HEADING_3,
+                        4: HeadingLevel.HEADING_4,
+                        5: HeadingLevel.HEADING_5,
+                        6: HeadingLevel.HEADING_6
                     };
                     const clonedHeading = el.cloneNode(true);
                     if (clonedHeading.firstChild && clonedHeading.firstChild.nodeType === Node.TEXT_NODE) {
@@ -2208,27 +2235,10 @@ if (docxBtn) {
                         clonedHeading.lastChild.nodeValue = clonedHeading.lastChild.nodeValue.replace(/[\s\t\n]+$/, '');
                     }
 
-                    const runs = buildDocxInlineRuns(clonedHeading, {
-                        font: 'Arial',
-                        size: sizeMap[tag],
-                        color: (tag === 'h1' || tag === 'h2') ? '0F172A' : '1E293B',
-                        bold: true
-                    }, imageMap);
+                    const runs = buildDocxInlineRuns(clonedHeading, {}, imageMap);
 
                     docChildren.push(new Paragraph({
-                        heading: headingMap[tag],
-                        spacing: {
-                            before: tag === 'h1' ? 280 : (tag === 'h2' ? 240 : 180),
-                            after: tag === 'h1' ? 120 : 100
-                        },
-                        border: (tag === 'h1' || tag === 'h2') ? {
-                            bottom: {
-                                style: BorderStyle.SINGLE,
-                                size: tag === 'h1' ? 12 : 6,
-                                color: 'E2E8F0',
-                                space: 4
-                            }
-                        } : undefined,
+                        heading: headingMap[normLevel],
                         children: runs
                     }));
                     continue;
@@ -2327,8 +2337,6 @@ if (docxBtn) {
                 // Standard Blockquote (<blockquote>)
                 if (tag === 'blockquote') {
                     const runs = buildDocxInlineRuns(el, {
-                        font: 'Arial',
-                        size: 21, // 10.5pt
                         color: '475569',
                         bold: false,
                         italics: true
@@ -2353,9 +2361,6 @@ if (docxBtn) {
                     clonedBlock.lastChild.nodeValue = clonedBlock.lastChild.nodeValue.replace(/[\s\t\n]+$/, '');
                 }
                 const pRuns = buildDocxInlineRuns(clonedBlock, {
-                    font: 'Arial',
-                    size: 21, // 10.5pt
-                    color: '334155',
                     bold: false
                 }, imageMap);
 
@@ -2367,8 +2372,74 @@ if (docxBtn) {
                 }
             }
 
-            // 3. Assemble OpenXML Document with 0.75-inch margins
+            // 3. Assemble OpenXML Document with 0.75-inch margins & Word-native styles
             const doc = new Document({
+                styles: {
+                    default: {
+                        document: {
+                            run: {
+                                font: 'Calibri',
+                                size: 22 // 11pt
+                            }
+                        }
+                    },
+                    paragraphStyles: [
+                        {
+                            id: 'Heading1',
+                            name: 'heading 1',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 32, bold: true, color: '3597C8' },
+                            paragraph: { spacing: { before: 320, after: 160 }, outlineLevel: 0 }
+                        },
+                        {
+                            id: 'Heading2',
+                            name: 'heading 2',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 26, bold: true, color: '3597C8' },
+                            paragraph: { spacing: { before: 220, after: 100 }, outlineLevel: 1 }
+                        },
+                        {
+                            id: 'Heading3',
+                            name: 'heading 3',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 24, bold: true, color: '1F4D78' },
+                            paragraph: { spacing: { before: 180, after: 80 }, outlineLevel: 2 }
+                        },
+                        {
+                            id: 'Heading4',
+                            name: 'heading 4',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 22, bold: true, color: '2E74B5' },
+                            paragraph: { spacing: { before: 160, after: 60 }, outlineLevel: 3 }
+                        },
+                        {
+                            id: 'Heading5',
+                            name: 'heading 5',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 22, color: '2E74B5' },
+                            paragraph: { spacing: { before: 140, after: 60 }, outlineLevel: 4 }
+                        },
+                        {
+                            id: 'Heading6',
+                            name: 'heading 6',
+                            basedOn: 'Normal',
+                            next: 'Normal',
+                            quickFormat: true,
+                            run: { size: 22, color: '1F4D78' },
+                            paragraph: { spacing: { before: 120, after: 60 }, outlineLevel: 5 }
+                        }
+                    ]
+                },
                 sections: [
                     {
                         properties: {

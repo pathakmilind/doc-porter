@@ -3,10 +3,15 @@
   "version": "1.0.0",
   "description": "Premium utility to copy styled Markdown and Mermaid diagrams directly into Google Docs and Confluence",
   "main": "index.html",
+  "bin": {
+    "md-porter": "./cli.js"
+  },
   "scripts": {
     "start": "npx http-server -p 3000 -c-1 -o"
   },
-  "dependencies": {},
+  "dependencies": {
+    "puppeteer-core": "^25.18.1"
+  },
   "devDependencies": {
     "http-server": "^14.1.1"
   }
