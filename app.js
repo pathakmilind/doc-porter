@@ -1839,7 +1839,7 @@ function buildDocxCodeBlockTable(preNode, indentDxa = 0) {
 
 // Build OpenXML Table for Data Tables and YAML Frontmatter Tables
 function buildDocxDataTable(tableNode, liveTable, imageMap) {
-    const { Table, TableRow, TableCell, Paragraph, WidthType, BorderStyle, ShadingType, AlignmentType, VerticalAlign } = window.docx;
+    const { Table, TableRow, TableCell, TableLayoutType, Paragraph, WidthType, BorderStyle, ShadingType, AlignmentType, VerticalAlign } = window.docx;
     const totalTableDxa = 10080; // 7.0 inches
 
     const rows = Array.from(tableNode.querySelectorAll('tr'));
@@ -1905,11 +1905,13 @@ function buildDocxDataTable(tableNode, liveTable, imageMap) {
                 italics: false
             }, imageMap);
 
+            const hMargin = colCount >= 5 ? 65 : 100;
+
             return new TableCell({
                 width: { size: cellDxa, type: WidthType.DXA },
                 verticalAlign: VerticalAlign.CENTER,
                 shading: { type: ShadingType.CLEAR, color: 'auto', fill: fillHex },
-                margins: { top: 60, bottom: 60, left: 100, right: 100 },
+                margins: { top: 60, bottom: 60, left: hMargin, right: hMargin },
                 borders: {
                     top: cellBorder,
                     bottom: cellBorder,
@@ -1934,6 +1936,7 @@ function buildDocxDataTable(tableNode, liveTable, imageMap) {
 
     return new Table({
         width: { size: totalTableDxa, type: WidthType.DXA },
+        layout: TableLayoutType.FIXED,
         columnWidths: colWidthsDxa,
         rows: docxRows
     });
